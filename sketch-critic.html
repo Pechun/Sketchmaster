@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Sketch Critic" />
+<title>Sketch Critic — 工業設計 AI 導師</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0C0C0C; --surface: #161616; --card: #1E1E1E;
+    --border: #252525; --border-hi: #333;
+    --accent: #FF3D00; --accent-dim: rgba(255,61,0,0.12);
+    --green: #39D98A; --yellow: #FFB547; --red: #FF5C5C;
+    --text: #EDEAE4; --muted: #5A5A5A; --sub: #888;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans','Noto Sans TC',sans-serif; }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── Animations ── */
+  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes fadeUp  { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.35} }
+  @keyframes ripple  { from{transform:scale(1);opacity:.6} to{transform:scale(2.5);opacity:0} }
+
+  /* ── Layout ── */
+  #app { display: flex; flex-direction: column; min-height: 100vh; }
+
+  header {
+    display: flex; align-items: center; padding: 14px 20px;
+    border-bottom: 1px solid var(--border); background: var(--surface);
+    position: sticky; top: 0; z-index: 100; gap: 12px;
+  }
+  .logo-wrap { display:flex; align-items:baseline; gap:8px; }
+  .logo-id   { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:var(--accent); }
+  .logo-rest { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:var(--text); }
+  .logo-sub  { font-size:11px; color:var(--muted); letter-spacing:.5px; margin-left:4px; }
+  .header-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+  .online-dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2.5s infinite; }
+  .online-txt { font-size:11px; color:var(--sub); }
+
+  /* Lang toggle */
+  #langBtn {
+    background: var(--card); border: 1px solid var(--border); border-radius:6px;
+    padding: 5px 13px; color: var(--text); font-size:12px; cursor:pointer;
+    font-family:'DM Mono',monospace; letter-spacing:1px; transition: border-color .2s;
+  }
+  #langBtn:hover { border-color: var(--border-hi); }
+
+  main { flex:1; max-width:1060px; margin:0 auto; width:100%; padding:24px 16px 60px; }
+
+  /* ── API Key banner ── */
+  #keyBanner {
+    background: var(--surface); border: 1px solid var(--border); border-radius:12px;
+    padding: 20px; margin-bottom: 20px; animation: fadeUp .4s ease;
+  }
+  #keyBanner h2 { font-size:15px; font-weight:600; margin-bottom:6px; }
+  #keyBanner p  { font-size:12px; color:var(--sub); margin-bottom:14px; line-height:1.7; }
+  .key-row { display:flex; gap:8px; }
+  #apiKeyInput {
+    flex:1; background:var(--card); border:1px solid var(--border); border-radius:8px;
+    padding:10px 14px; color:var(--text); font-size:13px; font-family:'DM Mono',monospace;
+    outline:none; transition:border-color .2s;
+  }
+  #apiKeyInput:focus { border-color: var(--accent); }
+  #apiKeyInput::placeholder { color: var(--muted); }
+  #saveKeyBtn {
+    padding:10px 18px; border-radius:8px; border:none; background:var(--accent);
+    color:#fff; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; transition:.15s;
+  }
+  #saveKeyBtn:hover { filter:brightness(1.1); }
+  #keyStatus { font-size:11px; margin-top:8px; display:none; }
+
+  /* ── Upload zone ── */
+  #uploadZone {
+    border: 2px dashed var(--border); border-radius:14px; background:var(--surface);
+    min-height:240px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer; transition: all .25s; margin-bottom:16px; position:relative; overflow:hidden;
+  }
+  #uploadZone.drag { border-color:var(--accent); background:var(--accent-dim); }
+  #uploadZone:hover { border-color: var(--border-hi); }
+  .upload-icon  { font-size:40px; opacity:.35; margin-bottom:14px; transition:.25s; }
+  #uploadZone.drag .upload-icon { opacity:.8; transform:scale(1.1); }
+  .upload-title { font-size:15px; font-weight:600; margin-bottom:6px; }
+  .upload-sub   { font-size:12px; color:var(--sub); text-align:center; line-height:1.7; }
+
+  /* ── Action bar ── */
+  #actionBar { display:none; gap:10px; margin-bottom:16px; }
+  #actionBar.visible { display:flex; }
+  .btn-ghost {
+    padding:9px 16px; border-radius:8px; border:1px solid var(--border);
+    background:transparent; color:var(--sub); font-size:13px; cursor:pointer; transition:.15s;
+  }
+  .btn-ghost:hover { border-color:var(--border-hi); color:var(--text); }
+  #analyzeBtn {
+    flex:1; padding:10px 0; border-radius:8px; border:none; background:var(--accent);
+    color:#fff; font-size:14px; font-weight:600; cursor:pointer; transition:all .2s;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  #analyzeBtn:hover:not(:disabled) { filter:brightness(1.1); transform:translateY(-1px); }
+  #analyzeBtn:disabled { background:var(--card); color:var(--muted); cursor:not-allowed; transform:none; }
+
+  /* ── Canvas wrap ── */
+  #canvasWrap {
+    position:relative; border-radius:12px; overflow:hidden;
+    background:var(--surface); border:1px solid var(--border);
+    width:100%; display:none;
+  }
+  #canvasWrap.visible { display:block; }
+  #sketchImg { width:100%; display:block; max-height:55vh; object-fit:contain; border-radius:12px; }
+  #annotCanvas { position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; }
+  #loadingOverlay {
+    position:absolute; inset:0; background:rgba(12,12,12,.78);
+    display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    backdrop-filter:blur(3px); border-radius:12px;
+  }
+  #loadingOverlay.visible { display:flex; }
+  .spinner { width:42px; height:42px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; }
+  #loadingMsg { font-size:13px; color:var(--sub); animation:pulse 1.8s infinite; }
+  #clickHint {
+    position:absolute; bottom:12px; left:50%; transform:translateX(-50%);
+    background:rgba(12,12,12,.82); backdrop-filter:blur(8px);
+    border-radius:20px; padding:5px 16px; font-size:11px; color:var(--sub);
+    border:1px solid var(--border); display:none; white-space:nowrap;
+  }
+  #clickHint.visible { display:block; }
+
+  /* ── Legend ── */
+  #legend { display:none; flex-wrap:wrap; gap:12px; margin-top:10px; margin-bottom:20px; }
+  #legend.visible { display:flex; }
+  .legend-item { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--sub); }
+  .legend-dot  { width:8px; height:8px; border-radius:50%; }
+
+  /* ── Result panel ── */
+  #resultPanel { display:none; animation:fadeUp .4s ease; }
+  #resultPanel.visible { display:block; }
+
+  /* Score card */
+  .score-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:18px; margin-bottom:12px; display:flex; gap:16px; align-items:flex-start;
+  }
+  .score-num { font-family:'DM Mono',monospace; font-size:54px; font-weight:700; line-height:1; }
+  .score-label { font-size:10px; color:var(--muted); margin-top:4px; letter-spacing:1px; }
+  .score-bars { display:flex; gap:3px; margin-top:8px; }
+  .score-bar { width:18px; height:3px; border-radius:2px; background:var(--border); transition:background .3s; }
+  .score-summary { flex:1; font-size:13px; color:var(--sub); line-height:1.75; padding-top:4px; }
+
+  /* Issues list */
+  .issues-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:12px; }
+  .issues-header { padding:11px 16px; border-bottom:1px solid var(--border); font-size:11px; color:var(--muted); letter-spacing:1.5px; font-weight:600; }
+  .ann-row {
+    padding:13px 16px; cursor:pointer; border-bottom:1px solid var(--border);
+    border-left:3px solid transparent; transition:all .15s;
+  }
+  .ann-row:last-child { border-bottom:none; }
+  .ann-row:hover { background:var(--card); }
+  .ann-row.active { background:var(--card); }
+  .ann-row-top { display:flex; align-items:center; gap:8px; }
+  .ann-num {
+    width:22px; height:22px; border-radius:50%; border:1.5px solid currentColor;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-family:'DM Mono',monospace; font-weight:600; flex-shrink:0;
+  }
+  .ann-label { font-size:13px; font-weight:600; flex:1; }
+  .ann-type-badge { font-size:10px; border-radius:4px; padding:2px 8px; }
+  .ann-chevron { font-size:11px; color:var(--muted); }
+  .ann-body { padding:10px 0 2px 30px; display:none; animation:fadeUp .2s ease; }
+  .ann-body.open { display:block; }
+  .ann-section { margin-bottom:8px; }
+  .ann-section-label { font-size:10px; letter-spacing:1px; margin-bottom:3px; font-weight:600; }
+  .ann-section-text  { font-size:12px; color:var(--sub); line-height:1.7; }
+
+  /* Next step */
+  .next-card {
+    background:var(--accent-dim); border:1px solid rgba(255,61,0,.25); border-radius:10px;
+    padding:13px 16px; display:flex; gap:10px; align-items:flex-start;
+  }
+  .next-arrow { font-size:16px; color:var(--accent); flex-shrink:0; }
+  .next-label { font-size:10px; color:var(--accent); letter-spacing:1px; margin-bottom:4px; font-weight:600; }
+  .next-text  { font-size:12px; color:var(--sub); line-height:1.7; }
+
+  /* Error */
+  .error-card { padding:14px 16px; border-radius:10px; background:rgba(255,61,0,.1); border:1px solid rgba(255,61,0,.3); font-size:13px; color:#FF8C7A; margin-bottom:12px; }
+
+  /* Feature cards */
+  #featureCards { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .feat-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px; }
+  .feat-icon { font-size:18px; color:var(--accent); margin-bottom:8px; }
+  .feat-title { font-size:13px; font-weight:600; margin-bottom:4px; }
+  .feat-desc  { font-size:11px; color:var(--sub); line-height:1.65; }
+
+  /* Responsive */
+  @media (min-width: 680px) {
+    #mainGrid { display:grid; grid-template-columns:1fr 340px; gap:20px; align-items:start; }
+    #leftCol, #rightCol { min-width:0; }
+  }
+  @media (max-width: 679px) {
+    #featureCards { grid-template-columns:1fr; }
+    .score-card { flex-direction:column; gap:10px; }
+    .score-num { font-size:42px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-wrap">
+      <span class="logo-id">SKETCH</span>
+      <span class="logo-rest">CRITIC</span>
+      <span class="logo-sub" id="logoSub">工業設計 AI 導師</span>
+    </div>
+    <div class="header-right">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="online-dot"></div>
+        <span class="online-txt" id="onlineTxt">AI 導師上線中</span>
+      </div>
+      <button id="langBtn">EN</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- API Key Banner -->
+    <div id="keyBanner">
+      <h2 id="keyTitle">🔑 輸入 Anthropic API Key</h2>
+      <p id="keyDesc">Key 只存在你的瀏覽器本機（localStorage），不會上傳到任何伺服器。<br>
+        取得 Key：前往 <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a> → API Keys → Create Key</p>
+      <div class="key-row">
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." autocomplete="off" />
+        <button id="saveKeyBtn" id="saveBtnTxt">儲存</button>
+      </div>
+      <div id="keyStatus"></div>
+    </div>
+
+    <div id="mainGrid">
+      <!-- Left column -->
+      <div id="leftCol">
+        <!-- Upload zone -->
+        <div id="uploadZone">
+          <div class="upload-icon">✏️</div>
+          <div class="upload-title" id="uploadTitle">拍照或上傳草圖</div>
+          <div class="upload-sub" id="uploadSub">支援 JPG、PNG、HEIC<br>拖曳或點擊上傳</div>
+          <input type="file" id="fileInput" accept="image/*" style="display:none" />
+        </div>
+
+        <!-- Action bar -->
+        <div id="actionBar">
+          <button class="btn-ghost" id="changeBtn">換張圖</button>
+          <button id="analyzeBtn">🔍 開始批改</button>
+        </div>
+
+        <!-- Canvas -->
+        <div id="canvasWrap">
+          <img id="sketchImg" alt="草圖" />
+          <canvas id="annotCanvas"></canvas>
+          <div id="loadingOverlay">
+            <div class="spinner"></div>
+            <div id="loadingMsg">分析中…</div>
+          </div>
+          <div id="clickHint">點擊圖上圓圈查看詳情</div>
+        </div>
+
+        <!-- Legend -->
+        <div id="legend"></div>
+
+        <!-- Feature cards (shown before first analysis) -->
+        <div id="featureCards">
+          <div class="feat-card">
+            <div class="feat-icon">⊹</div>
+            <div class="feat-title" data-zh="透視分析" data-en="Perspective">透視分析</div>
+            <div class="feat-desc" data-zh="消失點、視平線、三點透視檢查" data-en="Vanishing points, horizon line, axonometric check">消失點、視平線、三點透視檢查</div>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon">◈</div>
+            <div class="feat-title" data-zh="比例檢查" data-en="Proportion">比例檢查</div>
+            <div class="feat-desc" data-zh="各部件比例與人體工學合理性" data-en="Part ratios and ergonomic validity">各部件比例與人體工學合理性</div>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon">◉</div>
+            <div class="feat-title" data-zh="形體表現" data-en="Form & Shadow">形體表現</div>
+            <div class="feat-desc" data-zh="3D 感、光影邏輯、材質暗示" data-en="3D depth, shadow logic, material cues">3D 感、光影邏輯、材質暗示</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column -->
+      <div id="rightCol">
+        <div id="resultPanel"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+let lang = 'zh';
+let apiKey = localStorage.getItem('sc_api_key') || '';
+let imageBase64 = null;
+let imageMediaType = null;
+let annotations = [];
+let activeId = null;
+let imgNaturalW = 0, imgNaturalH = 0;
+
+// ── Type meta ─────────────────────────────────────────────────
+const TYPE_META = {
+  perspective: { color:'#FF5C5C', label:{ zh:'透視', en:'Perspective' } },
+  proportion:  { color:'#FFB547', label:{ zh:'比例', en:'Proportion'  } },
+  line:        { color:'#7EB8FF', label:{ zh:'線條', en:'Line'        } },
+  form:        { color:'#C27EFF', label:{ zh:'形體', en:'Form'        } },
+  detail:      { color:'#39D98A', label:{ zh:'細節', en:'Detail'      } },
+};
+
+// ── Prompts ───────────────────────────────────────────────────
+const SYSTEM = {
+  zh: `你是一位資深工業設計教授，專精於工業設計手繪技法（產品草圖、交通工具、家具、3C等）。
+
+請用以下 JSON 格式回覆（只回覆 JSON，不要任何額外文字或 markdown backtick）：
+{"score":7,"summary":"整體一句話評語","annotations":[{"id":1,"x":0.35,"y":0.28,"type":"perspective","label":"透視錯誤","issue":"左側消失點位置不對，導致底面透視崩潰","fix":"將消失點移至視平線上，重新拉輔助線確認底面角度"}],"nextStep":"下一步練習建議（一句話）"}
+
+規則：x、y 是問題在圖片中的相對位置（0.0=左/上，1.0=右/下）；type 只能是 perspective/proportion/line/form/detail；給 3~5 個 annotation；label 4字以內；繁體中文。`,
+  en: `You are a senior industrial design professor. Reply ONLY with JSON (no extra text, no backticks):
+{"score":7,"summary":"One-sentence overall comment","annotations":[{"id":1,"x":0.35,"y":0.28,"type":"perspective","label":"Perspective","issue":"Left vanishing point is misplaced","fix":"Move VP onto horizon line and redraw construction lines"}],"nextStep":"One sentence next-practice suggestion"}
+Rules: x,y = relative image position 0.0–1.0; type: perspective|proportion|line|form|detail; 3–5 annotations; label ≤3 words; English.`
+};
+
+const LOADING_MSGS = {
+  zh: ['正在識別圖面內容…','分析透視與比例…','標注問題位置…','生成修正建議…'],
+  en: ['Reading sketch content…','Analyzing perspective & proportion…','Placing annotation markers…','Generating corrections…'],
+};
+
+// ── i18n strings ──────────────────────────────────────────────
+const I18N = {
+  logoSub:     { zh:'工業設計 AI 導師',      en:'ID Sketch AI Mentor'      },
+  onlineTxt:   { zh:'AI 導師上線中',         en:'AI Mentor Online'          },
+  langBtn:     { zh:'EN',                     en:'中文'                      },
+  keyTitle:    { zh:'🔑 輸入 Anthropic API Key', en:'🔑 Enter Anthropic API Key' },
+  keyDesc:     { zh:'Key 只存在你的瀏覽器本機（localStorage），不會上傳到任何伺服器。<br>取得 Key：前往 <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a> → API Keys → Create Key',
+                 en:'Key is stored only in your browser (localStorage) and never sent to any server.<br>Get a key at <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a> → API Keys → Create Key' },
+  saveKeyBtn:  { zh:'儲存',                   en:'Save'                      },
+  keySaved:    { zh:'✓ Key 已儲存',           en:'✓ Key saved'               },
+  keyCleared:  { zh:'已清除',                 en:'Cleared'                   },
+  uploadTitle: { zh:'拍照或上傳草圖',          en:'Upload or Photograph Sketch'},
+  uploadSub:   { zh:'支援 JPG、PNG、HEIC\n拖曳或點擊上傳', en:'JPG / PNG / HEIC · Drag or tap' },
+  changeBtn:   { zh:'換張圖',                 en:'Change'                    },
+  analyzeBtn:  { zh:'🔍 開始批改',            en:'🔍 Analyze Sketch'         },
+  analyzingBtn:{ zh:'分析中…',               en:'Analyzing…'                },
+  reanalyze:   { zh:'🔄 重新批改',            en:'🔄 Re-analyze'             },
+  clickHint:   { zh:'點擊圖上圓圈查看詳情',    en:'Tap circles on image for details' },
+  scoreLabel:  { zh:'/ 10 · 綜合評分',        en:'/ 10 · Score'              },
+  issuesHdr:   { zh:'問題清單',               en:'ISSUES'                    },
+  issueLabel:  { zh:'⚠ 問題',               en:'⚠ Issue'                   },
+  fixLabel:    { zh:'✓ 修正',               en:'✓ Fix'                     },
+  nextLabel:   { zh:'下一步練習',             en:'NEXT PRACTICE'             },
+  noKey:       { zh:'請先輸入並儲存 API Key', en:'Please save your API Key first' },
+  noImg:       { zh:'請先上傳草圖',           en:'Please upload a sketch first'},
+  errPrefix:   { zh:'分析失敗：',             en:'Analysis failed: '         },
+};
+
+function t(key) { return I18N[key]?.[lang] ?? key; }
+function scoreColor(s) { return s>=8?'#39D98A':s>=6?'#FFB547':s>=4?'#FF8C42':'#FF3D00'; }
+
+// ── DOM refs ──────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const uploadZone   = $('uploadZone');
+const fileInput    = $('fileInput');
+const actionBar    = $('actionBar');
+const canvasWrap   = $('canvasWrap');
+const sketchImg    = $('sketchImg');
+const annotCanvas  = $('annotCanvas');
+const loadingOv    = $('loadingOverlay');
+const loadingMsg   = $('loadingMsg');
+const clickHint    = $('clickHint');
+const legend       = $('legend');
+const resultPanel  = $('resultPanel');
+const featureCards = $('featureCards');
+const analyzeBtn   = $('analyzeBtn');
+const changeBtn    = $('changeBtn');
+const langBtn      = $('langBtn');
+const keyBanner    = $('keyBanner');
+const apiKeyInput  = $('apiKeyInput');
+const saveKeyBtn   = $('saveKeyBtn');
+const keyStatus    = $('keyStatus');
+
+// ── Init ──────────────────────────────────────────────────────
+if (apiKey) { apiKeyInput.value = apiKey; showKeyStatus(t('keySaved'), '#39D98A'); }
+
+function applyLang() {
+  $('logoSub').textContent    = t('logoSub');
+  $('onlineTxt').textContent  = t('onlineTxt');
+  langBtn.textContent         = t('langBtn');
+  $('keyTitle').innerHTML     = t('keyTitle');
+  $('keyDesc').innerHTML      = t('keyDesc');
+  saveKeyBtn.textContent      = t('saveKeyBtn');
+  $('uploadTitle').textContent= t('uploadTitle');
+  $('uploadSub').innerHTML    = t('uploadSub').replace('\n','<br>');
+  changeBtn.textContent       = t('changeBtn');
+  clickHint.textContent       = t('clickHint');
+  // feature cards
+  document.querySelectorAll('[data-zh]').forEach(el => {
+    el.textContent = lang==='zh' ? el.dataset.zh : el.dataset.en;
+  });
+  // analyze button
+  if (!analyzeBtn.disabled) {
+    const hasResult = resultPanel.classList.contains('visible');
+    analyzeBtn.innerHTML = hasResult ? t('reanalyze') : t('analyzeBtn');
+  }
+}
+applyLang();
+
+// ── Lang toggle ───────────────────────────────────────────────
+langBtn.addEventListener('click', () => {
+  lang = lang==='zh' ? 'en' : 'zh';
+  applyLang();
+});
+
+// ── API Key ───────────────────────────────────────────────────
+function showKeyStatus(msg, color) {
+  keyStatus.textContent = msg;
+  keyStatus.style.color = color;
+  keyStatus.style.display = 'block';
+}
+saveKeyBtn.addEventListener('click', () => {
+  const val = apiKeyInput.value.trim();
+  if (!val) { localStorage.removeItem('sc_api_key'); apiKey=''; showKeyStatus(t('keyCleared'), '#888'); return; }
+  apiKey = val; localStorage.setItem('sc_api_key', val);
+  showKeyStatus(t('keySaved'), '#39D98A');
+});
+apiKeyInput.addEventListener('keydown', e => { if(e.key==='Enter') saveKeyBtn.click(); });
+
+// ── File handling ─────────────────────────────────────────────
+function processFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  imageMediaType = file.type;
+  const url = URL.createObjectURL(file);
+  sketchImg.onload = () => {
+    imgNaturalW = sketchImg.naturalWidth;
+    imgNaturalH = sketchImg.naturalHeight;
+  };
+  sketchImg.src = url;
+  uploadZone.style.display = 'none';
+  canvasWrap.classList.add('visible');
+  actionBar.classList.add('visible');
+  resultPanel.innerHTML = '';
+  resultPanel.classList.remove('visible');
+  legend.classList.remove('visible');
+  clickHint.classList.remove('visible');
+  annotations = []; activeId = null;
+  clearCanvas();
+  analyzeBtn.innerHTML = t('analyzeBtn');
+
+  const reader = new FileReader();
+  reader.onload = e => { imageBase64 = e.target.result.split(',')[1]; };
+  reader.readAsDataURL(file);
+}
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag');
+  processFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => processFile(e.target.files[0]));
+changeBtn.addEventListener('click', () => fileInput.click());
+
+// ── Canvas drawing ────────────────────────────────────────────
+function getImgRect() {
+  const cw = annotCanvas.offsetWidth, ch = annotCanvas.offsetHeight;
+  const iw = imgNaturalW || sketchImg.naturalWidth || cw;
+  const ih = imgNaturalH || sketchImg.naturalHeight || ch;
+  const scale = Math.min(cw/iw, ch/ih);
+  const dw = iw*scale, dh = ih*scale;
+  return { ox:(cw-dw)/2, oy:(ch-dh)/2, dw, dh };
+}
+
+function clearCanvas() {
+  const ctx = annotCanvas.getContext('2d');
+  annotCanvas.width  = annotCanvas.offsetWidth  || annotCanvas.clientWidth;
+  annotCanvas.height = annotCanvas.offsetHeight || annotCanvas.clientHeight;
+  ctx.clearRect(0,0,annotCanvas.width,annotCanvas.height);
+}
+
+function drawAnnotations() {
+  const canvas = annotCanvas;
+  canvas.width  = canvas.offsetWidth  || canvas.clientWidth;
+  canvas.height = canvas.offsetHeight || canvas.clientHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if (!annotations.length) return;
+
+  const { ox, oy, dw, dh } = getImgRect();
+
+  annotations.forEach(ann => {
+    const meta  = TYPE_META[ann.type] || TYPE_META.detail;
+    const px    = ox + ann.x * dw;
+    const py    = oy + ann.y * dh;
+    const isAct = activeId === ann.id;
+    const r     = isAct ? 18 : 13;
+    const color = meta.color;
+
+    // Pulse rings
+    if (isAct) {
+      [r+12, r+6].forEach((rr, i) => {
+        ctx.beginPath(); ctx.arc(px,py,rr,0,Math.PI*2);
+        ctx.strokeStyle = color + (i===0?'33':'55');
+        ctx.lineWidth = 1.5; ctx.stroke();
+      });
+    }
+
+    // Cross-hair
+    ctx.strokeStyle = color + (isAct ? 'AA' : '66');
+    ctx.lineWidth   = isAct ? 1.5 : 1;
+    ctx.setLineDash([4,4]);
+    [[px-r-14,py,px-r,py],[px+r,py,px+r+14,py],
+     [px,py-r-14,px,py-r],[px,py+r,px,py+r+14]].forEach(([x1,y1,x2,y2]) => {
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    // Circle
+    ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2);
+    ctx.fillStyle   = isAct ? color+'2E' : color+'18';
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = isAct ? 2.5 : 1.8;
+    ctx.stroke();
+
+    // Number
+    ctx.fillStyle     = color;
+    ctx.font          = `${isAct?700:600} ${isAct?13:11}px DM Mono, monospace`;
+    ctx.textAlign     = 'center';
+    ctx.textBaseline  = 'middle';
+    ctx.fillText(ann.id, px, py);
+  });
+}
+
+annotCanvas.addEventListener('click', e => {
+  if (!annotations.length) return;
+  const rect = annotCanvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+  const { ox, oy, dw, dh } = getImgRect();
+  for (const ann of annotations) {
+    const px = ox + ann.x*dw, py = oy + ann.y*dh;
+    if (Math.hypot(cx-px, cy-py) < 24) {
+      setActive(activeId===ann.id ? null : ann.id); return;
+    }
+  }
+  setActive(null);
+});
+
+function setActive(id) {
+  activeId = id;
+  drawAnnotations();
+  // Sync list
+  document.querySelectorAll('.ann-row').forEach(row => {
+    const rid = parseInt(row.dataset.id);
+    row.classList.toggle('active', rid===id);
+    const body = row.querySelector('.ann-body');
+    if (body) body.classList.toggle('open', rid===id);
+    row.querySelector('.ann-chevron').textContent = rid===id ? '▲' : '▼';
+    const meta = TYPE_META[annotations.find(a=>a.id===rid)?.type] || TYPE_META.detail;
+    row.style.borderLeftColor = rid===id ? meta.color : 'transparent';
+  });
+}
+
+window.addEventListener('resize', () => { if (annotations.length) drawAnnotations(); });
+
+// ── Legend ────────────────────────────────────────────────────
+function buildLegend() {
+  legend.innerHTML = Object.entries(TYPE_META).map(([key,meta]) =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${meta.color}"></div><span>${meta.label[lang]}</span></div>`
+  ).join('');
+  legend.classList.add('visible');
+}
+
+// ── Result panel ──────────────────────────────────────────────
+function renderResult(data) {
+  const sc = data.score;
+  const col = scoreColor(sc);
+  const bars = Array.from({length:10},(_,i)=>`<div class="score-bar" style="background:${i<sc?col:'var(--border)'}"></div>`).join('');
+
+  const annRows = (data.annotations||[]).map(ann => {
+    const meta = TYPE_META[ann.type]||TYPE_META.detail;
+    return `
+    <div class="ann-row" data-id="${ann.id}" style="border-left-color:transparent">
+      <div class="ann-row-top">
+        <div class="ann-num" style="color:${meta.color};border-color:${meta.color}">${ann.id}</div>
+        <div class="ann-label">${ann.label}</div>
+        <div class="ann-type-badge" style="color:${meta.color};background:${meta.color}18">${meta.label[lang]}</div>
+        <div class="ann-chevron">▼</div>
+      </div>
+      <div class="ann-body">
+        <div class="ann-section">
+          <div class="ann-section-label" style="color:#FF5C5C">${lang==='zh'?'⚠ 問題':'⚠ Issue'}</div>
+          <div class="ann-section-text">${ann.issue}</div>
+        </div>
+        <div class="ann-section">
+          <div class="ann-section-label" style="color:#39D98A">${lang==='zh'?'✓ 修正':'✓ Fix'}</div>
+          <div class="ann-section-text">${ann.fix}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  resultPanel.innerHTML = `
+    <div class="score-card">
+      <div>
+        <div class="score-num" style="color:${col}">${sc}</div>
+        <div class="score-label">${t('scoreLabel')}</div>
+        <div class="score-bars">${bars}</div>
+      </div>
+      <div class="score-summary">${data.summary}</div>
+    </div>
+    <div class="issues-card">
+      <div class="issues-header">${t('issuesHdr')}</div>
+      ${annRows}
+    </div>
+    ${data.nextStep ? `
+    <div class="next-card">
+      <div class="next-arrow">→</div>
+      <div>
+        <div class="next-label">${t('nextLabel')}</div>
+        <div class="next-text">${data.nextStep}</div>
+      </div>
+    </div>` : ''}
+  `;
+  resultPanel.classList.add('visible');
+
+  // Row click handlers
+  document.querySelectorAll('.ann-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const id = parseInt(row.dataset.id);
+      setActive(activeId===id ? null : id);
+      // scroll canvas into view on mobile
+      if (window.innerWidth < 680) canvasWrap.scrollIntoView({behavior:'smooth',block:'nearest'});
+    });
+  });
+}
+
+// ── Analyze ───────────────────────────────────────────────────
+let loadingTimer = null;
+
+analyzeBtn.addEventListener('click', async () => {
+  if (!apiKey) { alert(t('noKey')); return; }
+  if (!imageBase64) { alert(t('noImg')); return; }
+
+  // UI: loading
+  analyzeBtn.disabled = true;
+  analyzeBtn.innerHTML = `<span style="width:13px;height:13px;border:2px solid #444;border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;display:inline-block"></span> ${t('analyzingBtn')}`;
+  loadingOv.classList.add('visible');
+  clickHint.classList.remove('visible');
+  resultPanel.classList.remove('visible');
+  legend.classList.remove('visible');
+  clearCanvas();
+  featureCards.style.display = 'none';
+
+  let mi = 0;
+  const msgs = LOADING_MSGS[lang];
+  loadingMsg.textContent = msgs[0];
+  loadingTimer = setInterval(() => { mi=(mi+1)%msgs.length; loadingMsg.textContent=msgs[mi]; }, 1800);
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        system: SYSTEM[lang],
+        messages:[{
+          role:'user',
+          content:[
+            {type:'image', source:{type:'base64', media_type:imageMediaType, data:imageBase64}},
+            {type:'text',  text: lang==='zh'?'請分析這張工業設計手繪草圖，回傳 JSON 批改結果。':'Analyze this industrial design sketch and return the JSON critique.'}
+          ]
+        }]
+      })
+    });
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const raw   = (data.content||[]).map(b=>b.text||'').join('');
+    const clean = raw.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+
+    annotations = parsed.annotations || [];
+    activeId    = annotations[0]?.id ?? null;
+
+    loadingOv.classList.remove('visible');
+    drawAnnotations();
+    if (annotations.length) { clickHint.classList.add('visible'); buildLegend(); }
+    renderResult(parsed);
+    analyzeBtn.innerHTML = t('reanalyze');
+
+  } catch(err) {
+    loadingOv.classList.remove('visible');
+    resultPanel.innerHTML = `<div class="error-card">${t('errPrefix')}${err.message||err}</div>`;
+    resultPanel.classList.add('visible');
+    analyzeBtn.innerHTML = t('analyzeBtn');
+  } finally {
+    clearInterval(loadingTimer);
+    analyzeBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
